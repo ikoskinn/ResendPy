@@ -3,17 +3,22 @@ import asyncio
 
 from telethon import TelegramClient, events
 import telethon.tl.types.messages
+import configparser
+
 from SQLite.sqliteManager import SQLite
+
 import logging
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
 
-api_id = 0                                            # API ID и API HASH вы должны получить самостоятельно
-api_hash = ''
-admin_password = '5051'                               # Пароль требуемый чтобы бот вам отвечал.
-channelToName = ''                                    # Юзернейм канала на который бот будет пересылать посты.
-
 DB = SQLite('ResendDB')                               # БД, название файла.
+config = configparser.ConfigParser()
+
+api_id = int(config['Main']['api_id'])                # API ID и API HASH вы должны получить самостоятельно
+api_hash = config['Main']['api_hash']
+admin_password = config['Main']['password']           # Пароль требуемый чтобы бот вам отвечал.
+channelToName = config['Main']['channel']             # Юзернейм канала на который бот будет пересылать посты.
+
 
 
 
