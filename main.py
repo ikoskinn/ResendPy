@@ -23,16 +23,17 @@ logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s'
 config = configparser.ConfigParser()
 config.read("settings.ini")
 
-api_id = int(config['Main']['api_id'])                            # API ID и API HASH вы должны получить самостоятельно
+api_id = int(config['Main']['api_id'])                             # API ID и API HASH вы должны получить самостоятельно
 api_hash = config['Main']['api_hash']
-admin_password = config['Main']['password']                       # Пароль требуемый чтобы бот вам отвечал.
-channelToName = config['Main']['channel']                         # Юзернейм канала на который бот будет пересылать посты.
-forwardingCooldown = int(config['Main']['forwarding_cooldown'])   # Ожидание после цикла пересылки всех постов.
+admin_password = config['Main']['password']                        # Пароль требуемый чтобы бот вам отвечал.
+channelToName = config['Main']['channel']                          # Юзернейм канала на который бот будет пересылать посты.
+forwardingCooldown = int(config['Main']['forwarding_cooldown'])    # Ожидание после цикла пересылки всех постов.
+max_channels_per_acc = int(config['Main']['max_channels_per_acc']) # Максимальное количество каналов которое один аккаунт будет проверять.
 
 # Multi Accounts section
 
-phones = config['MultiAccounts']['phones'].split(',')             # Номера телефонов соответствующие каждому аккаунту.
-                                                                  # Требуется чтобы не вводить номера телефонов вручную в командной строке. Но смс коды вводить придется.
+phones = config['MultiAccounts']['phones'].split(',')              # Номера телефонов соответствующие каждому аккаунту.
+                                                                   # Требуется чтобы не вводить номера телефонов вручную в командной строке. Но смс коды вводить придется.
 
 saved_channels = {}
 
@@ -72,7 +73,7 @@ async def forward_posts(client: telethon.client.TelegramClient, phone: str):  # 
          except:
             admin_permission = False
          if admin_permission:
-            t = pDB.GetAndUpdateChannels()
+            t = pDB.GetAndUpdateChannels(forwardingCooldown, max_channels_per_acc)
             if t is not None:
                if len(t) > 0:
                   print(f"[@{me.username} | {me.phone}]: Начинаем процесс пересылки постов")
