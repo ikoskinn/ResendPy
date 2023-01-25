@@ -1,1 +1,2 @@
 Telethon~=1.26.1
+psycopg2
