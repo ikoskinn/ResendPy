@@ -1,5 +1,5 @@
 # ResendPy
-Python bot created on Telethon, can forward messages from another channels to yours.
+Python bot created on Telethon, can forward messages from another channels to yours. It uses Telegram accounts, not bots.
 
 
 # HOW TO START
