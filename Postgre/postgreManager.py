@@ -29,33 +29,29 @@ class Postgre:
             # Fetch result
             record = self.cursor.fetchone()
             print("You are connected to - ", record, "\n")
-
             if not self.fetchOne('''SELECT EXISTS (
                            SELECT FROM information_schema.tables 
                            WHERE  table_schema = 'public'
                            AND    table_name   = 'admins'
-                           );'''):
+                           );''')[0]:
+                print("Создаем таблицу Admins")
                 self.execute(
-                    '''CREATE TABLE Admins(ID INT PRIMARY KEY     NOT NULL,
-                    USER_ID           INT    NOT NULL,
+                    '''CREATE TABLE Admins(
+                    USER_ID           BIGINT    NOT NULL,
                     USERNAME           TEXT); ''')
 
             if not self.fetchOne('''SELECT EXISTS (
                                        SELECT FROM information_schema.tables 
                                        WHERE  table_schema = 'public'
                                        AND    table_name   = 'channels'
-                                       );'''):
+                                       );''')[0]:
+                print("Создаем таблицу Channels")
                 self.execute(
-                    '''CREATE TABLE Channels(ID INT PRIMARY KEY     NOT NULL,
-                    CHAT_ID           INT    NOT NULL,
+                    '''CREATE TABLE Channels(
+                    CHAT_ID           BIGINT    NOT NULL,
                     USERNAME           TEXT    NOT NULL,
-                    LAST_POST_ID           INT    NOT NULL,
-                    BLOCKED           BOOLEAN); ''')
-
-            #self.execute('''CREATE TABLE Channels(ID INT PRIMARY KEY     NOT NULL,CHAT_ID           INT    NOT NULL,USERNAME           TEXT    NOT NULL,LAST_POST_ID           INT    NOT NULL,BLOCKED           BOOLEAN); ''')
-
-            #self.execute('''CREATE TABLE Admins(ID INT PRIMARY KEY     NOT NULL,USER_ID           INT    NOT NULL,USERNAME           TEXT); ''')
-
+                    LAST_POST_ID           BIGINT    NOT NULL,
+                    CHECKED_TIME           BIGINT    DEFAULT    0); ''')
         except (Exception, Error) as error:
             print(f"Error while connecting to PostgreDB {error}", )
             if (self.connection):
