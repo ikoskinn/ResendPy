@@ -30,6 +30,28 @@ class Postgre:
             record = self.cursor.fetchone()
             print("You are connected to - ", record, "\n")
 
+            if not self.fetchOne('''SELECT EXISTS (
+                           SELECT FROM information_schema.tables 
+                           WHERE  table_schema = 'public'
+                           AND    table_name   = 'admins'
+                           );'''):
+                self.execute(
+                    '''CREATE TABLE Admins(ID INT PRIMARY KEY     NOT NULL,
+                    USER_ID           INT    NOT NULL,
+                    USERNAME           TEXT); ''')
+
+            if not self.fetchOne('''SELECT EXISTS (
+                                       SELECT FROM information_schema.tables 
+                                       WHERE  table_schema = 'public'
+                                       AND    table_name   = 'channels'
+                                       );'''):
+                self.execute(
+                    '''CREATE TABLE Channels(ID INT PRIMARY KEY     NOT NULL,
+                    CHAT_ID           INT    NOT NULL,
+                    USERNAME           TEXT    NOT NULL,
+                    LAST_POST_ID           INT    NOT NULL,
+                    BLOCKED           BOOLEAN); ''')
+
             #self.execute('''CREATE TABLE Channels(ID INT PRIMARY KEY     NOT NULL,CHAT_ID           INT    NOT NULL,USERNAME           TEXT    NOT NULL,LAST_POST_ID           INT    NOT NULL,BLOCKED           BOOLEAN); ''')
 
             #self.execute('''CREATE TABLE Admins(ID INT PRIMARY KEY     NOT NULL,USER_ID           INT    NOT NULL,USERNAME           TEXT); ''')
@@ -54,11 +76,11 @@ class Postgre:
     def DeleteChannel(self, Channel: telethon.tl.types.Channel):
         self.execute(f'DELETE FROM Channels WHERE CHAT_ID = \'{Channel.id}\'')
 
-    def GetAndUpdateChannels(self, max = 20):
+    def GetAndUpdateChannels(self, forwardingCooldown: int,  max = 20):
         dat = int(time.time())
-        dat10 = int(time.time())-10
+        dat_fwd = int(time.time())-forwardingCooldown
         return self.fetchAll(f'WITH updated as ('
-                             f'UPDATE Channels SET CHECKED_TIME = \'{dat}\' WHERE CHECKED_TIME <= \'{dat10}\' RETURNING *)'
+                             f'UPDATE Channels SET CHECKED_TIME = \'{dat}\' WHERE CHECKED_TIME <= \'{dat_fwd}\' RETURNING *)'
                              f' SELECT u.*, COUNT(*) OVER () AS total_update_count FROM updated AS u LIMIT {max}')
 
     def GetAllChannels(self):
