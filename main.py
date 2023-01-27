@@ -4,7 +4,6 @@ import os
 import time
 import typing
 from glob import glob
-from Log import Log
 
 from telethon import TelegramClient, events
 import telethon.tl.types.messages
