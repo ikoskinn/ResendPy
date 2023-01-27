@@ -1,9 +1,12 @@
+import threading
 import time
 
 import psycopg2
 from psycopg2 import Error
 
 import telethon.tl.types
+
+lock = threading.Lock()
 
 
 class Postgre:
@@ -18,6 +21,8 @@ class Postgre:
                                                host=host,
                                                port=port,
                                                database=database)
+
+            self.ChannelsReserved = {}
 
             # Create a cursor to perform database operations
             self.cursor = self.connection.cursor()
@@ -72,15 +77,33 @@ class Postgre:
     def DeleteChannel(self, Channel: telethon.tl.types.Channel):
         self.execute(f'DELETE FROM Channels WHERE CHAT_ID = \'{Channel.id}\'')
 
-    def GetAndUpdateChannels(self, forwardingCooldown: int,  max = 20):
-        dat = int(time.time())
-        dat_fwd = int(time.time())-forwardingCooldown
-        return self.fetchAll(f'WITH updated as ('
-                             f'UPDATE Channels SET CHECKED_TIME = \'{dat}\' WHERE CHECKED_TIME <= \'{dat_fwd}\' RETURNING *)'
-                             f' SELECT u.*, COUNT(*) OVER () AS total_update_count FROM updated AS u LIMIT {max}')
+    def GetUnreservedChannels(self, max = 20):
+        chs = self.GetAllChannels()
+        channels = {}
+        i = 0
+        for ch in chs:
+            if ch[1] not in self.ChannelsReserved:
+                channels[ch[1]] = ch
+                self.ChannelsReserved[ch[1]] = ch
+                i = i + 1
+                if i >= max:
+                    break
+
+        return channels
+
+    def UnreserveChannels(self, Channels: dict):
+        for ch_username in Channels:
+            del self.ChannelsReserved[ch_username]
+
+
+
+        # f'WITH updated as ('
+        # f'UPDATE Channels SET CHECKED_TIME = \'{dat}\' WHERE CHECKED_TIME <= \'{dat_fwd}\' RETURNING *)'
+        # f' SELECT u.*, COUNT(*) OVER () AS total_update_count FROM updated AS u LIMIT {max}'
 
     def GetAllChannels(self):
-        return self.fetchAll(f'SELECT * FROM Channels')
+        with lock:
+            return self.fetchAll(f'SELECT * FROM Channels')
 
     def UpdateLastPostId(self, Channel: telethon.tl.types.Channel, LastPostId: int):
         self.execute(f'UPDATE Channels SET LAST_POST_ID = {LastPostId} WHERE CHAT_ID = \'{Channel.id}\'')
