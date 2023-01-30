@@ -109,13 +109,13 @@ async def forward_posts():  # Основной метод для пересыл�
                                  await client.forward_messages(channelToName, messages, ch[1])
 
                               last_post_forwarded_id = messagesToForward[-1][-1].id
-                              pDB.UpdateLastPostId(t[0], last_post_forwarded_id)
+                              pDB.UpdateLastPostIdByInt(t[0][0], last_post_forwarded_id)
                               print(
                                  f"[@{me.username} | {me.phone}]: Переслали {len(messagesToForward)} с канала @{ch[1]}.")
                            else:
                               print(
                                  f"[@{me.username} | {me.phone}]: У канала @{ch[1]} нет новых постов.")
-                        except:
+                        except Exception as e:
                            pass
                   else:
                      # print(f"[@{me.username} | {me.phone}]: Каналов надлежащих проверке не нашлось. Пробуем через {forwardingCooldown} секунд.")
@@ -127,7 +127,7 @@ async def forward_posts():  # Основной метод для пересыл�
                await asyncio.sleep(60)
          except:
             pass
-         await asyncio.sleep(5)
+         await asyncio.sleep(10)
 
 
 client = TelegramClient(phone.replace('+', '').replace(' ', ''), api_id, api_hash)
