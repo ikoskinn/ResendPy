@@ -114,33 +114,29 @@ class Postgre:
         self.execute(f'DELETE FROM {self.AdminsTableName} WHERE USER_ID = \'{User.id}\'')
 
     def execute(self, query):
-        with lock:
-            try:
-                self.cursor.execute(query)
-                self.connection.commit()
-            except (Exception, Error) as error:
-                print("Error while connecting to PostgreSQL", error)
+        try:
+            self.cursor.execute(query)
+            self.connection.commit()
+        except (Exception, Error) as error:
+            print("Error while connecting to PostgreSQL", error)
 
     def fetchOne(self, query):
-        with lock:
-            try:
-                self.cursor.execute(query)
-                return self.cursor.fetchone()
-            except (Exception, Error) as error:
-                print(f"Error while fetching query from PostgreDB: {error}")
+        try:
+            self.cursor.execute(query)
+            return self.cursor.fetchone()
+        except (Exception, Error) as error:
+            print(f"Error while fetching query from PostgreDB: {error}")
 
     def fetchMany(self, query, size):
-        with lock:
-            try:
-                self.cursor.execute(query)
-                return self.cursor.fetchmany(size)
-            except (Exception, Error) as error:
-                print(f"Error while fetching many queries from PostgreDB: {error}")
+        try:
+            self.cursor.execute(query)
+            return self.cursor.fetchmany(size)
+        except (Exception, Error) as error:
+            print(f"Error while fetching many queries from PostgreDB: {error}")
 
     def fetchAll(self, query):
-        with lock:
-            try:
-                self.cursor.execute(query)
-                return self.cursor.fetchall()
-            except (Exception, Error) as error:
-                print(f"Error while fetching all queries from PostgreDB: {error}")
+        try:
+            self.cursor.execute(query)
+            return self.cursor.fetchall()
+        except (Exception, Error) as error:
+            print(f"Error while fetching all queries from PostgreDB: {error}")
