@@ -1,16 +1,11 @@
 #-*- coding: UTF-8 -*-
 import asyncio
-import os
-import time
-import typing
-from glob import glob
 
 from telethon import TelegramClient, events
 import telethon.tl.types.messages
 
 import configparser
 
-import psycopg2
 import Postgre.postgreManager
 
 from Ext import TelethonExt
@@ -32,8 +27,9 @@ max_channels_per_acc = int(config['Main']['max_channels_per_acc']) # Макси�
 
 # Multi Accounts section
 
-phones = config['MultiAccounts']['phones'].split(',')              # Номера телефонов соответствующие каждому аккаунту.
-                                                                   # Требуется чтобы не вводить номера телефонов вручную в командной строке. Но смс коды вводить придется.
+phone = config['MultiAccounts']['phone'].replace('+', '').replace(' ', '')    # Номера телефонов соответствующие каждому аккаунту.
+                                                                              # Требуется чтобы не вводить номера телефонов вручную в командной строке.
+                                                                              # Но смс коды вводить придется, только один раз.
 
 saved_channels = {}
 
@@ -48,12 +44,12 @@ pDB = Postgre.postgreManager.Postgre(
    password=config['Postgre']['password'],
    host=config['Postgre']['host'],
    port=config['Postgre']['port'],
-   database=config['Postgre']['database']
+   database=config['Postgre']['database'],
+   phone_number=phone
 )
 
-async def forward_posts(client: telethon.client.TelegramClient, phone: str):  # Основной метод для пересылки постов
+async def forward_posts():  # Основной метод для пересылки постов
    admin_permission = False
-
 
    global saved_channels
 
@@ -62,113 +58,93 @@ async def forward_posts(client: telethon.client.TelegramClient, phone: str):  # 
       channelTo = await client.get_entity(channelToName)
       print(f'[@{me.username} | {me.phone}]: Запустили метод пересылки постов')
       while True:
-         t = {}
          try:
-            if not admin_permission:
-               permissions = await client.get_permissions(channelTo, me)
-               if not permissions.is_admin:
-                  admin_permission = False
-               else:
-                  admin_permission = True
-         except:
-            admin_permission = False
-         if admin_permission:
-            #t = pDB.ReserveChannels(forwardingCooldown, me.phone, max_channels_per_acc)
-            t = pDB.GetUnreservedChannels()
-            if t is not None:
-               if len(t) > 0:
-                  for username in t:
-                     try:
-                        if username not in saved_channels:
-                           saved_channels[username] = await client.get_entity(username)
+            try:
+               if not admin_permission:
+                  permissions = await client.get_permissions(channelTo, me)
+                  if not permissions.is_admin:
+                     admin_permission = False
+                  else:
+                     admin_permission = True
+            except:
+               admin_permission = False
+            if admin_permission:
+               t = pDB.GetChannels()
+               if t is not None:
+                  if len(t) > 0:
+                     for ch in t:
+                        try:
+                           if ch[1] not in saved_channels:
+                              saved_channels[ch[1]] = await client.get_entity(ch[1])
 
-                        channelFrom = saved_channels[username]
+                           channelFrom = saved_channels[ch[1]]
 
-                     except Exception as e:
-                        print(str(e))
-                     last_post_forwarded_id = t[username][2]
-                     last_post_id = -1
+                        except Exception as e:
+                           print(str(e))
+                        last_post_forwarded_id = ch[2]
+                        last_post_id = -1
 
-                     last_grouped_id = -1
+                        last_grouped_id = -1
 
-                     messagesToForward = []
+                        messagesToForward = []
 
-                     try:
-                        async for message in client.iter_messages(channelFrom):
-                           if last_post_id == -1:
-                              last_post_id = message.id
+                        try:
+                           async for message in client.iter_messages(ch[1]):
+                              if last_post_id == -1:
+                                 last_post_id = message.id
 
-                           if message.id > last_post_forwarded_id:  # Нужно компоновать сообщения в списки в списках, чтобы пересылать сообщения с несколькими медиа как одно целое.
-                              if message.grouped_id == last_grouped_id and message.grouped_id != 0:
-                                 messagesToForward[-1].append(message)
+                              if message.id > last_post_forwarded_id:  # Нужно компоновать сообщения в списки в списках, чтобы пересылать сообщения с несколькими медиа как одно целое.
+                                 if message.grouped_id == last_grouped_id and message.grouped_id != 0:
+                                    messagesToForward[-1].append(message)
+                                 else:
+                                    messagesToForward.append([message])
+                                 last_grouped_id = message.grouped_id
                               else:
-                                 messagesToForward.append([message])
-                              last_grouped_id = message.grouped_id
+                                 break
+
+                           if len(messagesToForward) > 0:
+                              messagesToForward.reverse()
+                              for messages in messagesToForward:
+                                 messages.reverse()
+                                 await client.forward_messages(channelToName, messages, ch[1])
+
+                              last_post_forwarded_id = messagesToForward[-1][-1].id
+                              pDB.UpdateLastPostId(t[0], last_post_forwarded_id)
+                              print(
+                                 f"[@{me.username} | {me.phone}]: Переслали {len(messagesToForward)} с канала @{ch[1]}.")
                            else:
-                              break
-
-                        if len(messagesToForward) > 0:
-                           messagesToForward.reverse()
-                           for messages in messagesToForward:
-                              messages.reverse()
-                              await client.forward_messages(channelTo, messages, channelFrom)
-
-                           last_post_forwarded_id = messagesToForward[-1][-1].id
-                           pDB.UpdateLastPostId(channelFrom, last_post_forwarded_id)
-                           print(f"[@{me.username} | {me.phone}]: Переслали {len(messagesToForward)} с канала @{channelFrom.username}.")
-                        else:
-                           print(f"[@{me.username} | {me.phone}]: У канала @{channelFrom.username} нет новых постов.")
-                     except:
-                        pass
-               else:
-                  #print(f"[@{me.username} | {me.phone}]: Каналов надлежащих проверке не нашлось. Пробуем через {forwardingCooldown} секунд.")
-                  pass
-            print(f"[@{me.username} | {me.phone}]: Расчет окончен")
-         else:
-            print(
-               f'[@{me.username} | {me.phone}]: Нет прав админа у аккаунта на канале @{channelToName}. Пробуем еще раз через 60 секунд.')
-            await asyncio.sleep(60)
-         try:
-            pDB.UnreserveChannels(t)
+                              print(
+                                 f"[@{me.username} | {me.phone}]: У канала @{ch[1]} нет новых постов.")
+                        except:
+                           pass
+                  else:
+                     # print(f"[@{me.username} | {me.phone}]: Каналов надлежащих проверке не нашлось. Пробуем через {forwardingCooldown} секунд.")
+                     pass
+               print(f"[@{me.username} | {me.phone}]: Расчет окончен")
+            else:
+               print(
+                  f'[@{me.username} | {me.phone}]: Нет прав админа у аккаунта на канале @{channelToName}. Пробуем еще раз через 60 секунд.')
+               await asyncio.sleep(60)
          except:
             pass
-         await asyncio.sleep(1)
+         await asyncio.sleep(5)
 
 
-
-
-clients_phones = config['MultiAccounts']['phones'].split(',')
-clients = [TelegramClient(phone.replace('+', '').replace(' ', ''), api_id, api_hash) for phone in clients_phones]
-
-MAIN_CLIENT = clients[0] # ADDED TO COMPILE PROJECT WITH AUTO-PY-TO-EXE
-
-clients_jobs = [forward_posts(client, clients_phones[clients.index(client)]) for client in clients]
-
-
-async def clients_login():
-   global clients
-   if len(clients) > 1:
-      print(f'Начинаем процесс авторизации у {len(clients)} аккаунтов..')
-   else:
-      print(f'Начинаем процесс авторизации у {len(clients)} аккаунта..')
-   for client in clients:
-      await TelethonExt().Connect(client, clients_phones[clients.index(client)])
-
-   print(f'Процесс авторизации у {len(clients)} окончен')
+client = TelegramClient(phone.replace('+', '').replace(' ', ''), api_id, api_hash)
 
 async def main():
-   await clients_login()
+   print(f'Начинаем процесс авторизации у аккаунта..')
+   await TelethonExt().Connect(client, phone)
 
    await asyncio.gather(
-      *clients_jobs
+      forward_posts()
    )
 
-   await TelethonExt().Connect(clients[0], clients_phones[0])
-   clients[0].run_until_disconnected()
+   client.run_until_disconnected()
 
 deletingChannels = False
 
-@MAIN_CLIENT.on(events.NewMessage(pattern=admin_password))           # Вызывается после отправки пароля в ЛС боту.
+@client.on(events.NewMessage(pattern=admin_password))           # Вызывается после отправки пароля в ЛС боту.
 async def handler(event):
    sender = await event.get_sender()
    if pDB.IsAdmin(sender):
@@ -177,7 +153,7 @@ async def handler(event):
       pDB.AddAdmin(sender)
       await event.reply('Добавил вас в список администраторов в БД!')
 
-@MAIN_CLIENT.on(events.NewMessage(outgoing=False, pattern='@.*'))    # Метод для добавления каналов откуда бот будет пересылать посты.
+@client.on(events.NewMessage(outgoing=False, pattern='@.*'))    # Метод для добавления каналов откуда бот будет пересылать посты.
 async def handler(event):
    if deletingChannels is False:
       sender = await event.get_sender()
@@ -189,10 +165,10 @@ async def handler(event):
 
          for channel in channels:
             try:
-               channelFrom = await clients[0].get_entity(channel)
+               channelFrom = await client.get_entity(channel)
                if type(channelFrom) is telethon.tl.types.Channel:
                   if not pDB.ChannelExists(channelFrom):
-                     async for message in clients[0].iter_messages(channelFrom):
+                     async for message in client.iter_messages(channelFrom):
                         lastPostId = message.id
                         break
                      pDB.AddChannel(channelFrom, lastPostId)
@@ -215,7 +191,7 @@ async def handler(event):
       else:
          pass
 
-@MAIN_CLIENT.on(events.NewMessage(outgoing=False, pattern='/del'))   # Метод для удаления каналов из БД, откуда бот берет посты.
+@client.on(events.NewMessage(outgoing=False, pattern='/del'))   # Метод для удаления каналов из БД, откуда бот берет посты.
 async def handler(event):
    sender = await event.get_sender()
    if pDB.IsAdmin(sender):
@@ -230,7 +206,7 @@ async def handler(event):
    else:
       pass
 
-@MAIN_CLIENT.on(events.NewMessage(outgoing=False, pattern='/start')) # Приветственное сообщение, работает только для администраторов.
+@client.on(events.NewMessage(outgoing=False, pattern='/start')) # Приветственное сообщение, работает только для администраторов.
 async def handler(event):
    sender = await event.get_sender()
    if pDB.IsAdmin(sender):
@@ -245,7 +221,7 @@ async def handler(event):
    else:
       pass
 
-@MAIN_CLIENT.on(events.NewMessage(outgoing=False, pattern='/all'))   # Получить список всех каналов.
+@client.on(events.NewMessage(outgoing=False, pattern='/all'))   # Получить список всех каналов.
 async def handler(event):
    sender = await event.get_sender()
    if pDB.IsAdmin(sender):
@@ -261,7 +237,7 @@ async def handler(event):
    else:
       pass
 
-@MAIN_CLIENT.on(events.NewMessage())
+@client.on(events.NewMessage())
 async def handler(event):  # Хендлер для всех сообщений боту,
    global deletingChannels
    sender = await event.get_sender()
@@ -270,7 +246,7 @@ async def handler(event):  # Хендлер для всех сообщений �
          channels = str(event.message.text).split('\n')
          for channel in channels:
             try:
-               channel = await clients[0].get_entity(channel)
+               channel = await client.get_entity(channel)
                if type(channel) is telethon.tl.types.Channel:
                   pDB.DeleteChannel(channel)
                   await event.respond(f'Удалили канал {channel.username} из пересылаемых!')
